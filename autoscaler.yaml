@@ -1,0 +1,12 @@
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: go-api
+spec:
+  minReplicas: 3
+  maxReplicas: 5
+  scaleTargetRef:
+    apiVersion: extensions/v1
+    kind: Deployment
+    name: go-api
+  targetCPUUtilizationPercentage: 50

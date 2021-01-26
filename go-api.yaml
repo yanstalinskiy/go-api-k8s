@@ -1,0 +1,90 @@
+---
+#apiVersion: v1
+#kind: Secret
+#metadata:
+#  name: regcred
+#data:
+#  .dockerconfigjson: eyJhdXRocyI6eyJodHRwczovL2RvY2tlci5xaXguc3giOnsidXNlcm5hbWUiOiJ5YW4uc3RhbGluc2t5IiwicGFzc3dvcmQiOiJhKyhYSHEocmY4I21uOWhVIiwiZW1haWwiOiJ5YW4uc3RhbGluc2t5LmRvbXJrc0BnbWFpbC5jb20iLCJhdXRoIjoiZVdGdUxuTjBZV3hwYm5OcmVUcGhLeWhZU0hFb2NtWTRJMjF1T1doViJ9fX0=
+#type: kubernetes.io/dockerconfigjson
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-api
+  labels:
+    owner: YanStalinsky
+    app: go-api
+spec:
+  selector:
+    matchLabels:
+      app: go-api
+  template:
+    metadata:
+      labels:
+        app: go-api
+    spec:
+#      imagePullSecrets:
+#      - name: regcred
+      serviceAccountName: default
+      containers:
+      - name: go-api
+        image: gcr.io/develop-302018/go-api:latest
+        imagePullPolicy: Always
+#        resources:
+#          requests:
+#            cpu: "1"
+        env:
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: username
+        - name: DB_PASS
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: password
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: database
+        envFrom:
+        - secretRef:
+            name: postgres-secret
+        command: ["./app"]
+#        args: ["./app"]
+        ports:
+          - name: http 
+            containerPort: 8000
+#      hostname: go-api
+      - name: cloud-sql-proxy
+        # It is recommended to use the latest version of the Cloud SQL proxy
+        # Make sure to update on a regular schedule!
+        image: gcr.io/cloudsql-docker/gce-proxy:1.17
+        command:
+          - "/cloud_sql_proxy"
+
+          # If connecting from a VPC-native GKE cluster, you can use the
+          # following flag to have the proxy connect over private IP
+          # - "-ip_address_types=PRIVATE"
+
+          # Replace DB_PORT with the port the proxy should listen on
+          # Defaults: MySQL: 3306, Postgres: 5432, SQLServer: 1433
+          - "-instances=develop-302018:us-central1:postgres=tcp:5432"
+
+          # This flag specifies where the service account key can be found
+          - "-credential_file=/secrets/service_account.json"
+        securityContext:
+          # The default Cloud SQL proxy image runs as the
+          # "nonroot" user and group (uid: 65532) by default.
+          runAsNonRoot: true
+        volumeMounts:
+        - name: go-api-secret-volume
+          mountPath: /secrets/
+          readOnly: true
+      volumes:
+      - name: go-api-secret-volume
+        secret:
+          secretName: go-api-sa-secret
+---
